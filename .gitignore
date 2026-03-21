@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+venv/
+env/
+.env
+*.log
+
+# Hardhat
+artifacts/
+cache/
+typechain/
+typechain-types/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDEs
+.vscode/
+.idea/
+
+# System
+.DS_Store
+Thumbs.db

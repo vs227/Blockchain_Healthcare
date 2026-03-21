@@ -13,6 +13,7 @@ export default function DoctorDashboard({ user, activeTab }) {
     const [status, setStatus] = useState({ type: '', message: '' });
     const [isScanning, setIsScanning] = useState(false);
     const [isWhitelisting, setIsWhitelisting] = useState(false);
+    const [activeFile, setActiveFile] = useState(null);
 
     // ABDM Data Entry State
     const [formStep, setFormStep] = useState(1);
@@ -177,22 +178,21 @@ export default function DoctorDashboard({ user, activeTab }) {
     const handleDataSubmit = async (e) => {
         e.preventDefault();
         setError('');
-
-        // Structure data for encryption/upload
-        const recordData = {
-            ...vitals,
-            staff_id: user.id_hash || "0xHOSPITAL",
-            staff_name: user.name,
-            timestamp: Date.now()
-        };
-
-        const res = await uploadRecord(null, recordData, patientHash);
-        if (res?.success) {
-            alert("✓ Record Encrypted & Indexed on Blockchain");
-            setFormStep(1);
-            setVitals({ age: '', gender: '', hr: '', bp: '', o2: '', temp: '', diagnosis: '', medications: '', abha_id: '', billing: '' });
-        } else {
-            setError("Failed to encrypt/upload record.");
+        try {
+            const res = await uploadRecord(activeFile, vitals, patientHash, user.wallet);
+            if (res?.success) {
+                alert('Success: Clinical Record Secured on Blockchain & Cloud Analytics Hub!');
+                setVitals({ age: '', gender: '', hr: '', bp: '', o2: '', temp: '', diagnosis: '', medications: '', abha_id: '', billing: '' });
+                setActiveFile(null);
+                setFormStep(1);
+                // Refresh clinical history list
+                const refreshedData = await getRecords(patientHash);
+                if (refreshedData?.success) setPatientData(refreshedData.records);
+            } else {
+                setError('Submission failed. Check network or permissions.');
+            }
+        } catch (err) {
+            setError('Submission error: ' + err.message);
         }
     };
 
@@ -287,6 +287,19 @@ export default function DoctorDashboard({ user, activeTab }) {
                                                 <label style={labelStyle}>Body Temp (°C)</label>
                                                 <input placeholder="37.2" value={vitals.temp} onChange={e => setVitals({ ...vitals, temp: e.target.value })} style={inputStyle} />
                                             </div>
+                                            <div style={{ marginTop: 10 }}>
+                                                <label style={labelStyle}>Patient Age</label>
+                                                <input placeholder="45" value={vitals.age} onChange={e => setVitals({ ...vitals, age: e.target.value })} style={inputStyle} />
+                                            </div>
+                                            <div style={{ marginTop: 10 }}>
+                                                <label style={labelStyle}>Patient Gender</label>
+                                                <select value={vitals.gender} onChange={e => setVitals({ ...vitals, gender: e.target.value })} style={inputStyle}>
+                                                    <option value="">Select Gender</option>
+                                                    <option value="Male">Male</option>
+                                                    <option value="Female">Female</option>
+                                                    <option value="Other">Other</option>
+                                                </select>
+                                            </div>
                                         </div>
                                     )}
 
@@ -294,8 +307,16 @@ export default function DoctorDashboard({ user, activeTab }) {
                                         <div>
                                             <label style={labelStyle}>Primary Diagnosis (ICD-10)</label>
                                             <input placeholder="Type E11.9 (Type 2 Diabetes Mellitus)..." value={vitals.diagnosis} onChange={e => setVitals({ ...vitals, diagnosis: e.target.value })} style={inputStyle} />
+
                                             <label style={labelStyle}>Prescribed Medications</label>
                                             <textarea placeholder="Medication, Dosage, Frequency..." value={vitals.medications} onChange={e => setVitals({ ...vitals, medications: e.target.value })} style={{ ...inputStyle, minHeight: 100 }} />
+
+                                            <label style={labelStyle}>📎 Attachment / Lab Report (Optional)</label>
+                                            <input
+                                                type="file"
+                                                onChange={e => setActiveFile(e.target.files[0])}
+                                                style={{ ...inputStyle, border: '1px dashed #999', background: '#fff' }}
+                                            />
                                         </div>
                                     )}
 
@@ -354,26 +375,86 @@ export default function DoctorDashboard({ user, activeTab }) {
                                     {patientData.length === 0 ? (
                                         <p style={{ color: '#666', fontStyle: 'italic' }}>No historical records found for this patient on the blockchain.</p>
                                     ) : (
-                                        patientData.map((recordHash, i) => (
-                                            <div key={i} style={{ padding: '15px 20px', background: '#f8fafc', border: '1px solid #e2e8f0', marginBottom: 15, borderRadius: 8 }}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                                                    <span style={{ fontWeight: 700, color: '#1e293b' }}>📄 Medical Encounter Reference #{i + 1}</span>
-                                                    <a href={`https://gateway.pinata.cloud/ipfs/${recordHash}`} target="_blank" rel="noreferrer" style={{ color: '#2563eb', fontWeight: 600, fontSize: '0.85rem', padding: '4px 10px', background: '#eff6ff', borderRadius: 4 }}>Inspect Encrypted Source</a>
+                                        patientData.map((record, i) => (
+                                            <div key={i} style={{ padding: '20px', background: '#f8fafc', border: '1px solid #e2e8f0', marginBottom: 20, borderRadius: 12, boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15, borderBottom: '1px solid #e2e8f0', paddingBottom: 10 }}>
+                                                    <div>
+                                                        <span style={{ fontWeight: 800, color: '#1e293b', fontSize: '1rem' }}>📄 CLINICAL ENCOUNTER #{i + 1}</span>
+                                                        <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 4 }}>ID: 0x{record.cid?.substring(0, 16).toUpperCase()}...</div>
+                                                    </div>
+                                                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569', background: '#f1f5f9', padding: '4px 10px', borderRadius: 6 }}>
+                                                        🕒 {new Date(record.timestamp * 1000).toLocaleString()}
+                                                    </span>
                                                 </div>
 
-                                                <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 6, padding: 15 }}>
+                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 10, marginBottom: 20 }}>
+                                                    {[
+                                                        { label: 'Age', val: record.data?.age || 'N/A' },
+                                                        { label: 'Gender', val: record.data?.gender || 'N/A' },
+                                                        { label: 'HR (BPM)', val: record.data?.hr ? `${record.data.hr}` : 'N/A' },
+                                                        { label: 'BP (Sys/Dia)', val: record.data?.bp || 'N/A' },
+                                                        { label: 'SpO2 (%)', val: record.data?.o2 ? `${record.data.o2}` : 'N/A' },
+                                                        { label: 'Temp (°C)', val: record.data?.temp || 'N/A' }
+                                                    ].map((item, idx) => (
+                                                        <div key={idx} style={{ background: '#fff', border: '1px solid #f1f5f9', padding: '8px 4px', borderRadius: 8, textAlign: 'center' }}>
+                                                            <div style={{ fontSize: '0.45rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 4 }}>{item.label}</div>
+                                                            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0f172a' }}>{item.val}</div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+
+                                                <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 18 }}>
                                                     {user.specialization === 'pharmacist' ? (
                                                         <div>
-                                                            <div style={{ fontSize: '0.8rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 5 }}>Prescriptions & Dispatch</div>
-                                                            <p style={{ fontSize: '0.9rem', color: '#111' }}>[Decrypted via IPFS securely] Please refer to specific medication notes linked to this record hash. Action: Dispense strictly as directed by the primary physician.</p>
+                                                            <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                                💊 Prescriptions & Medication Notes
+                                                            </div>
+                                                            <p style={{ fontSize: '0.95rem', color: '#1e293b', lineHeight: 1.6, background: '#f0f9ff', padding: 12, borderRadius: 6, border: '1px solid #e0f2fe' }}>
+                                                                {record.data?.medications || "No medication notes provided for this encounter."}
+                                                            </p>
                                                         </div>
                                                     ) : (
                                                         <div>
-                                                            <div style={{ fontSize: '0.8rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 5 }}>Full Clinical Summary</div>
-                                                            <p style={{ fontSize: '0.9rem', color: '#111', marginBottom: 10 }}>[Decrypted via IPFS securely] Full access to body vitals (SpO2, Temp, BP) and primary ICD-10 diagnosis notes.</p>
+                                                            <div style={{ display: 'flex', gap: 20 }}>
+                                                                <div style={{ flex: 1 }}>
+                                                                    <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#111', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>🩺 Diagnosis & Summary</div>
+                                                                    <p style={{ fontSize: '0.95rem', color: '#1e293b', fontWeight: 600, background: '#f9fafb', padding: 12, borderRadius: 6, border: '1px solid #f1f5f9' }}>
+                                                                        {record.data?.diagnosis || "Consultation summary not available."}
+                                                                    </p>
+                                                                </div>
+                                                                <div style={{ flex: 1 }}>
+                                                                    <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#111', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>📝 Staff Instructions</div>
+                                                                    <p style={{ fontSize: '0.9rem', color: '#64748b', fontStyle: 'italic', lineHeight: 1.5 }}>
+                                                                        {record.data?.medications || "No additional instructions entered."}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     )}
                                                 </div>
+
+                                                {record.data?._attachment && (
+                                                    <div style={{ marginTop: 20, paddingTop: 15, borderTop: '1px dashed #e2e8f0' }}>
+                                                        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: 10 }}>📎 Encrypted Attachment (Decrypted)</div>
+                                                        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                                                            {record.data._attachment.length > 1000 ? (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const link = document.createElement('a');
+                                                                        link.href = `data:application/octet-stream;base64,${record.data._attachment}`;
+                                                                        link.download = record.data._filename || "medical_record_attachment";
+                                                                        link.click();
+                                                                    }}
+                                                                    style={{ ...btnPrimary, padding: '8px 16px', fontSize: '0.8rem', backgroundColor: '#4b5563' }}
+                                                                >
+                                                                    DOWNLOAD ATTACHED FILE
+                                                                </button>
+                                                            ) : (
+                                                                <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>No valid file attachment detected for this entry.</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         ))
                                     )}

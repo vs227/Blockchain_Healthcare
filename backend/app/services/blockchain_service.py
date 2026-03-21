@@ -78,9 +78,19 @@ def whitelist_doctor(doctor_addr):
 def add_record_to_chain(patient_hash_hex, ipfs_hash):
     """
     Hospital adds a record for a patient (identified by Aadhaar hash).
+    Ensures the hash is 32 bytes (64 hex chars) for the bytes32 contract field.
     """
-    patient_hash = bytes.fromhex(patient_hash_hex.replace("0x", ""))
-    return send_transaction("addMedicalRecord", patient_hash, ipfs_hash)
+    clean_hex = patient_hash_hex.replace("0x", "")
+    # Pad to 64 chars (32 bytes) if it's shorter (e.g. an address)
+    padded_hex = clean_hex.zfill(64)
+    try:
+        patient_hash = bytes.fromhex(padded_hex)
+        return send_transaction("addMedicalRecord", patient_hash, ipfs_hash)
+    except ValueError:
+        # If it's not hex, hash it first (e.g. if a plain string was passed)
+        import hashlib
+        h = hashlib.sha256(patient_hash_hex.encode()).digest()
+        return send_transaction("addMedicalRecord", h, ipfs_hash)
 
 def request_access_for_doctor(patient_hash_hex, doctor_address):
     """

@@ -7,12 +7,21 @@ MediChain bridges the gap between Web3 security and public health accessibility.
 
 ---
 
-## 🚀 One-Click Setup (Windows)
-1. Ensure you have **Node.js**, **Python 3.10+**, and **MetaMask** installed.
-2. Run the initializer:
+## 🚀 Quick Start (For You & Your Friend)
+1. Ensure you have **Node.js 18+**, **Python 3.10+**, and **MetaMask** installed.
+2. Run the automated installer:
 ```powershell
 .\setup_all.ps1
 ```
+*Note: The script will automatically create `.env` files from the provided `.env.example` templates in the root, backend, and frontend folders.*
+
+---
+
+## 📦 Collaborator Onboarding Kit
+I have added a `requirements/` folder containing a detailed setup guide. New developers should:
+1. Follow `requirements/README.md`.
+2. Update `backend/.env` with their own **Infura/Alchemy API Key** and **Private Key**.
+3. Use the provided **Sepolia Contract Address** for instant testing.
 
 ---
 

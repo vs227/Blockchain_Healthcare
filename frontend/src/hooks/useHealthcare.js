@@ -29,12 +29,13 @@ export const useHealthcare = (user) => {
         }
     }, []);
 
-    const uploadRecord = async (file, vitals, targetAadhaar) => {
+    const uploadRecord = async (file, vitals, targetHash, doctorAddress) => {
         const fd = new FormData();
         if (file) fd.append('file', file);
-        fd.append('patient_aadhaar', targetAadhaar || user?.id_hash || '');
-        fd.append('vitals', JSON.stringify(vitals));
-        return api('post', '/records/upload', fd, { 'Content-Type': 'multipart/form-data' });
+        fd.append('patient_hash', targetHash || '');
+        fd.append('doctor_address', doctorAddress || '');
+        fd.append('vitals_json', JSON.stringify(vitals));
+        return api('post', '/records/submit', fd);
     };
 
     const getRecords = (target) => api('get', `/records/${target || user?.aadhaar || ''}`);

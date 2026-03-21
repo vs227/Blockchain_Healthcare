@@ -56,11 +56,25 @@ export default function PatientDashboard({ user, activeTab }) {
         <div style={{ background: '#f5f5f5', minHeight: '100vh', padding: 24, fontFamily: 'monospace' }}>
             <div style={{ maxWidth: 900, margin: '0 auto' }}>
 
+                {/* Status Header */}
+                <div style={{ ...cardStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                        <h2 style={{ fontSize: '0.8rem', color: '#111', fontFamily: 'monospace', wordBreak: 'break-all' }}>{user.id_hash}</h2>
+                        <p style={{ color: '#666', fontSize: '0.85rem' }}>Role: <span style={{ fontWeight: 600 }}>PATIENT / OWNER</span></p>
+                    </div>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                        <button onClick={() => window.location.reload()} style={{ background: '#f3f4f6', border: '1px solid #d1d5db', padding: '8px 16px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>🔄 REFRESH PORTAL</button>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '6px 14px', background: '#ecfdf5', color: '#065f46', border: '1px solid #a7f3d0', borderRadius: 20 }}>
+                            NETWORK: SEPOLIA TESTNET
+                        </span>
+                    </div>
+                </div>
+
                 {/* Profile Card */}
                 <div style={{ ...cardStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                         <h1 style={{ fontSize: '1.4rem', color: '#111' }}>{user.name}</h1>
-                        <p style={{ color: '#666', marginTop: 5 }}>Aadhaar Hash: <code style={{ fontSize: '0.8rem' }}>{user.id_hash.substring(0, 16)}...</code></p>
+                        <p style={{ color: '#666', marginTop: 5, fontSize: '0.75rem' }}>Aadhaar Hash: <code style={{ fontSize: '0.65rem', wordBreak: 'break-all', color: '#444' }}>{user.id_hash}</code></p>
                         <div style={{ marginTop: 15, display: 'flex', gap: 10 }}>
                             <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '4px 8px', background: '#ecfdf5', color: '#065f46', border: '1px solid #a7f3d0', borderRadius: 4 }}>ID VERIFIED</span>
                             <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '4px 8px', background: '#eff6ff', color: '#1e3a8a', border: '1px solid #bfdbfe', borderRadius: 4 }}>SECURE VAULT ACTIVE</span>
@@ -115,13 +129,55 @@ export default function PatientDashboard({ user, activeTab }) {
                             {records.length === 0 ? (
                                 <p style={{ color: '#999', fontStyle: 'italic', textAlign: 'center' }}>No records found in the vault.</p>
                             ) : (
-                                records.map((r, i) => (
-                                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 15px', background: '#f9fafb', border: '1px solid #eee', marginBottom: 10, borderRadius: 6 }}>
-                                        <div>
-                                            <span style={{ fontWeight: 600 }}>📄 Medical ID: {i + 1}</span>
-                                            <p style={{ fontSize: '0.75rem', color: '#666', marginTop: 4 }}>Time: {new Date(r[1] * 1000).toLocaleString()}</p>
+                                records.map((record, i) => (
+                                    <div key={i} style={{ padding: '20px', background: '#f9fafb', border: '1px solid #e5e7eb', marginBottom: 15, borderRadius: 10 }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+                                            <span style={{ fontWeight: 800, color: '#111', fontSize: '0.9rem' }}>🛡️ PROTECTED RECORD #{i + 1}</span>
+                                            <span style={{ fontSize: '0.75rem', color: '#666', background: '#fff', padding: '4px 10px', borderRadius: 4, border: '1px solid #ddd' }}>
+                                                {new Date(record.timestamp * 1000).toLocaleString()}
+                                            </span>
                                         </div>
-                                        <a href={`https://gateway.pinata.cloud/ipfs/${r[0]}`} target="_blank" rel="noreferrer" style={{ color: '#2563eb', fontWeight: 600, fontSize: '0.9rem' }}>View Source</a>
+
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8, marginBottom: 15 }}>
+                                            {[
+                                                { label: 'HR (BPM)', val: record.data?.hr },
+                                                { label: 'BP (Sys/Dia)', val: record.data?.bp },
+                                                { label: 'SpO2 (%)', val: record.data?.o2 },
+                                                { label: 'Temp (°C)', val: record.data?.temp },
+                                                { label: 'Age', val: record.data?.age },
+                                                { label: 'Gender', val: record.data?.gender }
+                                            ].map((v, idx) => (
+                                                <div key={idx} style={{ background: '#fff', padding: '10px 4px', borderRadius: 4, border: '1px solid #f1f5f9', textAlign: 'center' }}>
+                                                    <div style={{ fontSize: '0.45rem', color: '#999', fontWeight: 800, textTransform: 'uppercase' }}>{v.label}</div>
+                                                    <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '0.8rem' }}>{v.val || '--'}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        <div style={{ background: '#fff', border: '1px solid #f1f5f9', borderRadius: 8, padding: 15 }}>
+                                            <div style={{ marginBottom: 10 }}>
+                                                <div style={{ fontSize: '0.6rem', color: '#3b82f6', fontWeight: 800, textTransform: 'uppercase', marginBottom: 4 }}>🩺 Diagnosis / Encounter Summary</div>
+                                                <div style={{ color: '#1e293b', fontSize: '0.9rem', fontWeight: 600 }}>{record.data?.diagnosis || "General Health Consultation"}</div>
+                                            </div>
+                                            <div style={{ borderTop: '1px dashed #f1f5f9', paddingTop: 10 }}>
+                                                <div style={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', marginBottom: 4 }}>💊 Medication / Instructions</div>
+                                                <div style={{ color: '#475569', fontSize: '0.85rem', fontStyle: 'italic' }}>{record.data?.medications || "Maintain standard clinical protocols."}</div>
+                                            </div>
+                                        </div>
+
+                                        {record.data?._attachment && record.data._attachment.length > 1000 && (
+                                            <button
+                                                onClick={() => {
+                                                    const link = document.createElement('a');
+                                                    link.href = `data:application/octet-stream;base64,${record.data._attachment}`;
+                                                    link.download = record.data._filename || "my_medical_record";
+                                                    link.click();
+                                                }}
+                                                style={{ marginTop: 15, width: '100%', padding: '10px', background: '#fff', border: '1px solid #2563eb', color: '#2563eb', borderRadius: 6, fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}
+                                            >
+                                                📥 DOWNLOAD CLINICAL ATTACHMENT
+                                            </button>
+                                        )}
                                     </div>
                                 ))
                             )}

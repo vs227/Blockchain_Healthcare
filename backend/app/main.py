@@ -4,7 +4,7 @@ from typing import List, Optional
 import json
 import os
 
-from .services import ipfs_service, ml_service, auth_service, blockchain_service
+from .services import ipfs_service, ml_service, auth_service, blockchain_service, analytics_service
 
 app = FastAPI(title="MediChain Intelligence API")
 
@@ -126,9 +126,23 @@ async def get_records(aadhaar: str):
             patient_hash = auth_service.generate_aadhaar_hash(aadhaar)
         
         print(f"[RECORDS] Fetching from blockchain for: {patient_hash}")
-        # Check blockchain
-        recs = blockchain_service.get_records(patient_hash)
-        return {"records": recs}
+        # 1. Get citations from Blockchain (Timestamp + CID)
+        citations = blockchain_service.get_records(patient_hash)
+        
+        # 2. Fetch and Decrypt data from IPFS
+        enriched_records = []
+        for c in citations:
+            cid = c.get("ipfs_hash")
+            decrypted_data = ipfs_service.download_record(cid)
+            
+            # Combine blockchain metadata with IPFS clinical data
+            enriched_records.append({
+                "timestamp": c.get("timestamp"),
+                "cid": cid,
+                "data": decrypted_data
+            })
+            
+        return {"records": enriched_records}
     except Exception as e:
         import traceback
         print(f"!!! [GET_RECORDS ERROR] !!!\n{traceback.format_exc()}")
@@ -182,29 +196,49 @@ async def approve_request(data: dict):
         
     return {"success": True, "blockchain": res}
 
+@app.post("/records/submit")
+async def submit_vitals(
+    patient_hash: str = Form(...),
+    doctor_address: str = Form(...),
+    vitals_json: str = Form(...),
+    file: UploadFile = File(None)
+):
+    try:
+        print(f"[RECORDS] Submitting for: {patient_hash}")
+        vitals = json.loads(vitals_json)
+        
+        # Ensure patient_hash is in vitals for the IPFS bundle/name
+        vitals["patient_hash"] = patient_hash
+        
+        # 1. Log to Anonymized Analytics DB (Requirement: No PII)
+        analytics_service.log_metric(vitals)
+        
+        # 2. Process for IPFS/Blockchain (Real Secured Data)
+        file_bytes = b""
+        if file:
+            file_bytes = await file.read()
+        
+        print(f"[RECORDS] Encrypting & Uploading to IPFS...")
+        ipfs_res = ipfs_service.upload_record(file_bytes, vitals)
+        
+        if not ipfs_res or "cid" not in ipfs_res:
+            print("[RECORDS] IPFS FAILURE: Resource not returned.")
+            raise HTTPException(status_code=500, detail="IPFS Upload Failed")
+            
+        # 3. Blockchain Audit Trail
+        print(f"[RECORDS] Creating on-chain audit for CID: {ipfs_res['cid']}")
+        chain_res = blockchain_service.add_record_to_chain(patient_hash, ipfs_res["cid"])
+        print(f"[RECORDS] Success! TX: {chain_res['tx_hash']}")
+        
+        return {"success": True, "cid": ipfs_res["cid"], "tx": chain_res}
+    except Exception as e:
+        import traceback
+        error_msg = f"Submission Error: {str(e)}"
+        print(f"!!! [SUBMISSION ERROR] !!!\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=error_msg)
+
 # ── Analytics & Dashboard ────────────────────────────────────
 @app.get("/admin/dashboard")
-async def get_dashboard():
-    # Return mock/live analytics for the Admin dashboard
-    return {
-        "summary": {
-            "total_patients": 1284,
-            "bed_occupancy": 84,
-            "icu_beds_used": 12,
-            "icu_beds_total": 40,
-            "avg_wait_minutes": 18
-        },
-        "risk_distribution": {"high": 12, "medium": 45, "low": 27},
-        "hourly_trend": [
-            {"hour": i, "patients": 20 + (i % 5) * 10} for i in range(24)
-        ],
-        "department_load": [
-            {"name": "Emergency", "load": 92, "trend": "up"},
-            {"name": "Cardiology", "load": 45, "trend": "down"},
-            {"name": "ICU", "load": 78, "trend": "up"},
-        ],
-        "alerts": [
-            {"id": 1, "type": "critical", "message": "High influx in Pediatric Emergency", "time": "2 mins ago"},
-            {"id": 2, "type": "warning", "message": "Blood supply for O- low", "time": "15 mins ago"}
-        ]
-    }
+async def get_admin_dashboard():
+    """Return live metrics from the anonymized clinical warehouse."""
+    return analytics_service.get_hospital_stats()
